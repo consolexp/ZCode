@@ -1,0 +1,108 @@
+name: Windows portable
+
+on:
+  push:
+    branches: [workbuddy-cn]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-portable-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      HUSKY: "0"
+      ZCODE_ENV: production
+      ZCODE_AUTO_UPDATE: "0"
+      ZCODE_ARMS_RUM_ENDPOINT: ""
+      ZCODE_TELEMETRY_REPORT_ENDPOINT: ""
+      ZCODE_PACKAGED_AGENT_OTEL_ENDPOINT: ""
+      ZCODE_TARGET_OS: win32
+      ZCODE_TARGET_ARCH: x64
+      ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read pinned Node version
+        id: versions
+        run: |
+          $nodeVersion = [regex]::Match((Get-Content mise.toml -Raw), 'node\s*=\s*"([^"]+)"').Groups[1].Value
+          if (-not $nodeVersion) { throw 'Node version missing in mise.toml' }
+          "node=$nodeVersion" >> $env:GITHUB_OUTPUT
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.versions.outputs.node }}
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build embedded Agent and runtime assets
+        run: pnpm prepare:desktop-runtime
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Build production desktop
+        run: pnpm --filter @zcode/desktop build:no-runtime-assets
+      - name: Package Windows x64 ZIP
+        run: |
+          pnpm --filter @zcode/desktop exec electron-builder --config electron-builder.config.js --win zip --x64 --publish never '-c.electronDist=../../node_modules/electron/dist' '-c.win.artifactName=ZCode-WorkBuddy-win-x64-portable.zip'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify extracted ZIP with an empty account profile
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP 'zcode-portable-extracted'
+          Expand-Archive -LiteralPath packages/desktop/dist/ZCode-WorkBuddy-win-x64-portable.zip -DestinationPath $destination
+          node scripts/ci/windows-portable-smoke.mjs $destination
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Generate checksum and release notes
+        run: |
+          $zip = Get-Item packages/desktop/dist/ZCode-WorkBuddy-win-x64-portable.zip
+          $hash = (Get-FileHash -LiteralPath $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($zip.Name)" | Set-Content packages/desktop/dist/SHA256SUMS.txt -Encoding ascii
+          @"
+          WorkBuddy 国内版 Windows x64 免安装开发构建。
+
+          源码：$env:GITHUB_SHA
+          构建：$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID
+
+          下载 ZIP 后完整解压，运行 ZCode.exe，无需安装或运行 apiredirect。账号和设置保存在 Windows 用户默认数据目录。
+          在设置 → 模型提供商中添加 WorkBuddy 国内，登录自己的账号。支持多账号渠道、签到、模型目录和积分倍数同步。
+          本包由 GitHub Windows runner 从源码生成，不含开发者账号或会话数据；自动更新已关闭。
+
+          已通过类型检查、Lint、打包 runtime/native 检查、解压启动、空账号 WorkBuddy 面板及内嵌 Agent 初始化检查。
+          本次未使用真实账号验证模型推理，未执行完整测试套件。此为未签名预发布版本，Windows 可能提示未知发布者。
+          SHA256SUMS.txt 用于校验 ZIP。
+          "@ | Set-Content packages/desktop/dist/release-notes.md -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ZCode-WorkBuddy-win-x64-portable
+          path: |
+            packages/desktop/dist/ZCode-WorkBuddy-win-x64-portable.zip
+            packages/desktop/dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "workbuddy-cn-$env:GITHUB_SHA"
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --draft --title 'ZCode WorkBuddy Windows 便携版' --notes-file packages/desktop/dist/release-notes.md
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          gh release upload $tag packages/desktop/dist/ZCode-WorkBuddy-win-x64-portable.zip packages/desktop/dist/SHA256SUMS.txt --clobber --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          gh release edit $tag --draft=false --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
