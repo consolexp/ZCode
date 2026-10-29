@@ -1,6 +1,11 @@
 import type { ProviderSettingsView } from "@zcode/services";
 import { describe, expect, it } from "vitest";
-import { buildComposerPlanGroups, composerConnectionKey } from "@/lib/composerPlanGroups.js";
+import {
+  buildComposerPlanGroups,
+  composerConnectionKey,
+  chooseConnectionModel,
+} from "@/lib/composerPlanGroups.js";
+import { encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
 import { BUILTIN_MODEL_PROVIDER_IDS as IDS } from "@zcode/shared";
 const personal = {
   key: `registry-provider:${IDS.bigmodelIndividualCodingPlan}`,
@@ -24,6 +29,14 @@ const product = {
   ],
 };
 describe("Composer concrete team provider rows", () => {
+  it("官方显示名称变化不会改变按模型 ID 保留连接选择的行为", () => {
+    const items = ["hy3", "deepseek-v4.1-flash"].map((id) => ({
+      key: id,
+      name: `Display ${id}`,
+      value: encodeCustomModelValue("wb", id),
+    }));
+    expect(chooseConnectionModel(items, "deepseek-v4.1-flash")).toBe(items[1]);
+  });
   it.each(["unavailable", "unknown", "available", undefined] as const)(
     "按 Provider 权威状态过滤菜单：%s",
     (availability) => {

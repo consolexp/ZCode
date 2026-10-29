@@ -376,6 +376,14 @@ export {
 export { IClientConfigService } from "./client-config/clientConfig.js";
 
 export { IHighspeedCardService } from "./highspeed/highspeedCard.js";
+export { WORKBUDDY_CN_ID } from "./workbuddy/contract.js";
+export type {
+  WorkbuddyAccountView,
+  WorkbuddyCommand,
+  WorkbuddyBenefits,
+  WorkbuddyModel,
+  WorkbuddyUsage,
+} from "./workbuddy/contract.js";
 export {
   HighspeedCardService,
   createHighspeedHttpTransport,

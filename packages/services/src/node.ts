@@ -35,6 +35,7 @@ import {
   PERSONAL_PROVIDER_CONFIG_FILE_NAME,
 } from "@zcode/provider-node";
 import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
+import { createCredentialCipherProvider } from "./credential/providers/credentialCipherProvider.js";
 import {
   createHasExistingLocalTask,
   hasAnyAgentSessionRow,
@@ -1609,6 +1610,14 @@ export function createLocalServices(options: {
     | Pick<IZCodeAgentService, "testModelConnectivity">
     | undefined;
   const providerRuntime = createProviderRuntimeFromConfigRuntime({
+    ...(options.serviceAuthorityMode === "desktop-local"
+      ? {
+          workbuddy: {
+            filePath: join(resolveAppConfigDir(), "workbuddy-cn.enc"),
+            cipher: createCredentialCipherProvider(),
+          },
+        }
+      : {}),
     configRuntime: providerConfigRuntime,
     accountSource: accountProviderConfigSource,
     modelSelectionConfiguredDefaultSource,

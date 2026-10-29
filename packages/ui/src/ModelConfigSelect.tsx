@@ -63,6 +63,7 @@ export interface ModelSelectGroupItem {
   name: string;
   badgeLabel?: string;
   supportsVisionInput?: boolean;
+  extra?: ReactNode;
 }
 
 export interface ModelSelectConnectionOption {
@@ -346,8 +347,14 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
       } as const;
       const content = (
         <>
-          <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
-            <span className="min-w-0 truncate" title={item.name}>
+          {/* 活动与倍率曾挤掉长模型名；名称完整换行，辅助信息空间不足时另起一行。 */}
+          <span
+            className={cn(
+              "flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-left",
+              item.extra && "basis-44",
+            )}
+          >
+            <span className="min-w-0 whitespace-normal break-words" title={item.name}>
               {item.name}
             </span>
             {item.badgeLabel ? (
@@ -355,6 +362,11 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
             ) : null}
             {item.supportsVisionInput ? <ModelInputCapabilityBadge /> : null}
           </span>
+          {item.extra ? (
+            <span className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+              {item.extra}
+            </span>
+          ) : null}
           {itemLocked ? (
             <TooltipProvider>
               <Tooltip>
@@ -390,7 +402,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
           <DropdownMenuItem
             key={itemKey}
             {...commonProps}
-            className="min-h-8 cursor-not-allowed gap-2 px-2 text-ui-base text-foreground-subtlest data-[highlighted]:text-foreground-subtlest"
+            className="min-h-8 flex-wrap cursor-not-allowed gap-2 px-2 text-ui-base text-foreground-subtlest data-[highlighted]:text-foreground-subtlest"
             onSelect={(event) => event.preventDefault()}
           >
             {content}
@@ -403,7 +415,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
           key={itemKey}
           {...commonProps}
           value={item.value}
-          className="min-h-8 gap-2 pl-2 pr-8 text-ui-base"
+          className="min-h-8 flex-wrap gap-2 pl-2 pr-8 text-ui-base"
           onSelect={(event) => {
             handleModelValueChange(item.value);
             // 合并菜单选模型后还可继续调档，阻止菜单项默认关闭；外侧点击仍走原关闭链路。
@@ -675,12 +687,14 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
           className={cn(
             composerOptions
               ? // 外层滚动会带走供应商和 Effort；只让 Models 列表收缩，且排除窗口拖拽命中。
-                "w-72 overflow-y-hidden [app-region:no-drag] [&>*:not([data-composer-model-list]):not([data-composer-provider-list])]:shrink-0"
+                "w-112 max-w-[calc(100vw-24px)] overflow-y-hidden [app-region:no-drag] [&>*:not([data-composer-model-list]):not([data-composer-provider-list])]:shrink-0"
               : shouldShowProviderLevel
                 ? "w-max min-w-48 max-w-[calc(100vw-2rem)]"
                 : "w-48 max-h-72 overflow-y-auto",
           )}
           collisionPadding={composerOptions ? 12 : undefined}
+          // 窄窗口的触发器可能在可见区边缘，不能为保持贴近触发器而把模型名推出屏幕。
+          sticky={composerOptions ? "always" : undefined}
           align={contentAlign}
           side={contentSide}
           onCloseAutoFocus={(event) => {

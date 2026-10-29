@@ -40,6 +40,7 @@ export function serializeRegistryProviderConfig(
   config: RegistryProviderConfig,
 ): RegistryProviderConfigObject {
   return {
+    ...(config.integration === undefined ? {} : { integration: config.integration }),
     group: config.group,
     ...(config.logo === undefined ? {} : { logo: config.logo }),
     access:

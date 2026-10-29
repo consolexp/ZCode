@@ -1,4 +1,5 @@
 import { requestSecurityMessagesZhCN } from "@/request-security-edition/messages.js";
+import { workbuddyMessagesZhCN } from "@/workbuddy/messages.js";
 /** 中文翻译 */
 const zhCN: Record<string, string> = {
   "preview.image.copy": "复制图片",
@@ -7686,6 +7687,7 @@ const zhCN: Record<string, string> = {
   "globalNotice.highspeed.imageSummary": "{tokens} tokens · 节省 {duration} 秒",
   "globalNotice.highspeed.close": "关闭加速分享卡片",
   ...requestSecurityMessagesZhCN,
+  ...workbuddyMessagesZhCN,
 };
 
 export default zhCN;

@@ -84,6 +84,7 @@ export const personalProviderApiDataSchema = providerApiDataSchema.extend({
 const modelIdsDataSchema = z.array(z.string().min(1)).readonly().nullable().optional();
 export const providerConfigDataSchema = z
   .object({
+    integration: z.literal("workbuddy-cn").nullable().optional(),
     group: providerGroupDataSchema.nullable().optional(),
     logo: providerLogoDataSchema.nullable().optional(),
     access: providerAccessDataSchema.nullable().optional(),

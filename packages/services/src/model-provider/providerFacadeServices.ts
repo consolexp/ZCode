@@ -19,6 +19,7 @@ import {
 import { createServiceDescriptor } from "../descriptors.js";
 import type { ModelConnectivityResult } from "@zcode/shared";
 import { createServiceLogger } from "../logger/serviceLogger.js";
+import type { WorkbuddyPort } from "../workbuddy/contract.js";
 
 export type {
   ProviderSettingsProviderView,
@@ -28,6 +29,8 @@ export type {
 } from "@zcode/provider";
 
 export interface IProviderSettingsService {
+  /** 仅桌面本地环境装配；插件与远程环境不能隐式访问账号凭据。 */
+  workbuddy?: WorkbuddyPort["execute"];
   readonly onDidChange: Event<ProviderSettingsView>;
   getView(): Promise<ProviderSettingsView>;
   refresh(reason: string): Promise<ProviderSettingsView>;
@@ -110,8 +113,18 @@ export function createProviderSettingsService(
   facade: ProviderSettingsFacade,
   ensureReady: () => Promise<void> = async () => {},
   testConnectivity?: ProviderSettingsConnectivityTester,
+  workbuddy?: WorkbuddyPort,
+  onProviderDeleted?: (providerId: string) => Promise<void>,
 ): IProviderSettingsService {
   return {
+    ...(workbuddy
+      ? {
+          workbuddy: async (command) => {
+            await ensureReady();
+            return workbuddy.execute(command);
+          },
+        }
+      : {}),
     onDidChange: toEvent((listener) => facade.onDidChange(listener)),
     getView: async () => {
       await ensureReady();
@@ -135,7 +148,9 @@ export function createProviderSettingsService(
     },
     deletePersonalProvider: async (providerId) => {
       await ensureReady();
-      return facade.deletePersonalProvider(providerId);
+      const view = await facade.deletePersonalProvider(providerId);
+      await onProviderDeleted?.(providerId);
+      return view;
     },
     reorderPersonalProviders: async (providerIds) => {
       await ensureReady();

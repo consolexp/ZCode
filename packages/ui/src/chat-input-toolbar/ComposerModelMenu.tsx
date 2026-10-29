@@ -74,6 +74,7 @@ export function ComposerThoughtIndicator({
   options: ComposerModelOptions;
   highspeed?: boolean;
 }) {
+  if (!options.levels.length) return null;
   const { label, progress } = getComposerThoughtDisplay(options);
   return (
     <>

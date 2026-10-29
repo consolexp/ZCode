@@ -45,6 +45,32 @@ const registryView: ModelSelectionView = {
 };
 
 describe("resolveModelThoughtOption", () => {
+  it("WorkBuddy 单档隐藏调节，多档仍可调，普通渠道单档不受影响", () => {
+    const makeView = (integration: string | undefined, values: string[]) =>
+      ({
+        ...registryView,
+        providers: [
+          {
+            ...registryView.providers[0],
+            config: { ...registryView.providers[0]!.config, integration },
+            models: [{ modelId: "test", config: { optionSpecs: { reasoningLevel: { values } } } }],
+          },
+        ],
+      }) as ModelSelectionView;
+    const resolve = (integration: string | undefined, values: string[]) =>
+      resolveModelThoughtOption({
+        modelSelectionView: makeView(integration, values),
+        providerId: "provider-demo",
+        modelId: "test",
+      });
+    expect(resolve("workbuddy-cn", ["high"])).toBeNull();
+    expect(resolve("workbuddy-cn", ["low", "high", "max"])?.options?.map((o) => o.value)).toEqual([
+      "low",
+      "high",
+      "max",
+    ]);
+    expect(resolve(undefined, ["high"])?.options?.map((o) => o.value)).toEqual(["high"]);
+  });
   it("uses Registry optionSpecs as the authoritative reasoning definition", () => {
     expect(
       resolveModelThoughtOption({

@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useRef } from "react";
 import type { ProviderSettingsFormProvider } from "@/lib/providerSettingsFormTypes.js";
 import type { ModelConnectivityResult } from "@zcode/shared";
-import type { ProviderSettingsView } from "@zcode/services";
+import { WORKBUDDY_CN_ID, type ProviderSettingsView } from "@zcode/services";
 import { useServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 import { useProviderSettingsServiceView } from "@/hooks/useProviderSettingsView.js";
@@ -87,6 +87,17 @@ export function useModelProviders(target: {
 
   const createPersonalProvider = useCallback(
     async (input?: Parameters<typeof providerSettingsService.createPersonalProvider>[0]) => {
+      if (input?.templateId === WORKBUDDY_CN_ID) {
+        if (!providerSettingsService.workbuddy)
+          throw new Error("WorkBuddy requires a local desktop environment.");
+        const account = await providerSettingsService.workbuddy({
+          type: "create",
+          name: input.providerName,
+        });
+        const view = await providerSettingsService.getView();
+        commitProviderSettingsView(view);
+        return { providerId: account.providerId, view };
+      }
       const created = await providerSettingsService.createPersonalProvider(input);
       commitProviderSettingsView(created.view);
       return created;

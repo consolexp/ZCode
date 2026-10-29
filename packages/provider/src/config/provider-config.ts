@@ -171,6 +171,7 @@ export type ProviderConfigInput = Omit<ProviderConfigObject, "access" | "api"> &
 export type ProviderConfigObject = Readonly<z.infer<typeof providerConfigDataSchema>>;
 
 export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
+  readonly integration?: ProviderConfigObject["integration"];
   readonly group?: ProviderConfigObject["group"];
   readonly logo?: ProviderConfigObject["logo"];
   readonly access?: ProviderAccessConfig | null;
@@ -182,6 +183,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
 
   constructor(input: ProviderConfigInput = {}) {
     super();
+    this.integration = input.integration;
     this.group = input.group;
     this.logo = freezeProviderLogo(input.logo);
     this.access = input.access;
@@ -195,6 +197,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
 
   overlay(next: ProviderConfig): ProviderConfig {
     return new ProviderConfig({
+      integration: this.overlayValue(this.integration, next.integration),
       group: this.overlayValue(this.group, next.group),
       logo: this.overlayValue(this.logo, next.logo),
       access: overlayProviderAccess(this.access, next.access),
@@ -220,6 +223,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
 
   withoutGroup(): ProviderConfig {
     return new ProviderConfig({
+      integration: this.integration,
       logo: this.logo,
       access: this.access,
       api: this.api,
@@ -233,6 +237,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
   /** 普通 Provider 字段保存不拥有成员变更；成员只能由明确的领域操作更新。 */
   withModelMembershipFrom(source: ProviderConfig | undefined): ProviderConfig {
     return new ProviderConfig({
+      integration: this.integration,
       group: this.group,
       logo: this.logo,
       access: this.access,
@@ -251,6 +256,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
 
   toJSON(): ProviderConfigObject {
     return objectWithoutUndefined({
+      integration: this.integration,
       group: this.group,
       logo: this.logo,
       access: this.access?.toJSON() ?? this.access,

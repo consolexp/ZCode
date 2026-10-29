@@ -11,6 +11,7 @@ import {
   type ModelProviderGroupLabelOptions,
 } from "@/lib/modelSelectionGroups.js";
 import { formatTeamPlanDisplayName } from "@/lib/teamPlanDisplayName.js";
+import { decodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
 export interface ComposerConnection {
   key: string;
   label: string;
@@ -49,7 +50,10 @@ export function composerConnectionKey(
   );
 }
 export function chooseConnectionModel(items: readonly ModelSelectGroupItem[], model?: string) {
-  return items.find((item) => item.name === model) ?? items[0];
+  return (
+    items.find((item) => (decodeCustomModelValue(item.value)?.modelName ?? item.name) === model) ??
+    items[0]
+  );
 }
 /** 只投影账号套餐行；API、自定义供应商及模型目录仍沿用原始对象。 */
 export function buildComposerPlanGroups(

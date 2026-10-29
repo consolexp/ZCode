@@ -1,4 +1,5 @@
 import { requestSecurityMessagesEnUS } from "@/request-security-edition/messages.js";
+import { workbuddyMessagesEnUS } from "@/workbuddy/messages.js";
 /** English translations */
 const enUS: Record<string, string> = {
   "preview.image.copy": "Copy image",
@@ -8099,6 +8100,7 @@ const enUS: Record<string, string> = {
   "globalNotice.highspeed.imageSummary": "{tokens} tokens · {duration}s saved",
   "globalNotice.highspeed.close": "Close Highspeed share card",
   ...requestSecurityMessagesEnUS,
+  ...workbuddyMessagesEnUS,
 };
 
 export default enUS;

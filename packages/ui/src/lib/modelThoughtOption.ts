@@ -1,5 +1,5 @@
 import type { ZCodeConfigOption } from "@zcode/shared";
-import type { ModelSelectionView } from "@zcode/services";
+import { WORKBUDDY_CN_ID, type ModelSelectionView } from "@zcode/services";
 
 /** 从 Registry 的 ModelConfig Option Specs 读取思考档位。 */
 export function resolveModelThoughtOption(params: {
@@ -15,6 +15,8 @@ export function resolveModelThoughtOption(params: {
   const model = provider?.models.find((candidate) => candidate.modelId === params.modelId);
   const reasoning = model?.config.optionSpecs.reasoningLevel;
   if (!reasoning || reasoning.values.length === 0) return null;
+  // WorkBuddy 的固定档位没有可调范围；保留配置供 Agent 使用，界面不显示伪调节。
+  if (provider?.config.integration === WORKBUDDY_CN_ID && reasoning.values.length < 2) return null;
 
   return {
     id: "thought_level",

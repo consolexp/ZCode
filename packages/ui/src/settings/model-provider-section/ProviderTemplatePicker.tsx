@@ -1,4 +1,4 @@
-import type { ProviderSettingsView } from "@zcode/services";
+import { WORKBUDDY_CN_ID, type ProviderSettingsView } from "@zcode/services";
 import { ArrowLeftIcon, ChevronRightIcon, PlusIcon } from "lucide-react";
 import { resolveProviderTemplateName } from "@zcode/provider";
 import type { ReactNode } from "react";
@@ -106,6 +106,21 @@ export function ProviderTemplatePicker({
                   onClick={() => void createWithFeedback(() => onCreateCustom(customLabel))}
                 />
               ) : null}
+              {group.id === "other" && (
+                <ProviderTemplateCard
+                  label={intl.formatMessage({ id: "workbuddy.title" })}
+                  disabled={creating}
+                  testId={testId(TID_MODEL_PROVIDER_TEMPLATE_ITEM, WORKBUDDY_CN_ID)}
+                  icon={
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-ui-lg font-semibold">
+                      W
+                    </span>
+                  }
+                  onClick={() =>
+                    void createWithFeedback(() => onCreateFromTemplate(WORKBUDDY_CN_ID))
+                  }
+                />
+              )}
               {group.templates.map((template) => {
                 const label = resolveProviderTemplateName(template.templateId, template, locale);
                 return (

@@ -25,6 +25,7 @@ import {
   type ProviderSettingsConnectivityTester,
 } from "./providerFacadeServices.js";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
+import { WorkbuddyRuntime, type WorkbuddyRuntimeOptions } from "../workbuddy/index.js";
 
 const log = createServiceLogger("provider-runtime");
 
@@ -34,6 +35,7 @@ export interface ProviderRuntimeOptions extends ProviderConfigRuntimeOptions {
 }
 
 export interface ProviderRuntimeDependencies {
+  readonly workbuddy?: Omit<WorkbuddyRuntimeOptions, "settings">;
   readonly configRuntime: ProviderConfigRuntime;
   readonly accountSource?: RefreshableProviderSource<AccountProviderConfigSnapshot>;
   readonly disposeAccountSource?: () => void;
@@ -75,6 +77,7 @@ export class ProviderRuntime {
   readonly #disposeModelSelectionConfiguredDefaultSource?: () => void;
   #startPromise: ReturnType<ProviderRegistryService["start"]> | null = null;
   #disposed = false;
+  readonly #workbuddy?: WorkbuddyRuntime;
 
   constructor(dependencies: ProviderRuntimeDependencies) {
     this.#configRuntime = dependencies.configRuntime;
@@ -104,10 +107,15 @@ export class ProviderRuntime {
     );
     const ensureReady = () => this.start();
     const settingsFacade = new ProviderSettingsFacade(this.registryService, mutations);
+    this.#workbuddy = dependencies.workbuddy
+      ? new WorkbuddyRuntime({ ...dependencies.workbuddy, settings: settingsFacade })
+      : undefined;
     this.providerSettings = createProviderSettingsService(
       settingsFacade,
       ensureReady,
       dependencies.testConnectivity,
+      this.#workbuddy,
+      this.#workbuddy ? (providerId) => this.#workbuddy!.removeAccount(providerId) : undefined,
     );
     this.#modelSelectionRuntime = createModelSelectionService(
       createNodeModelSelectionFacade(this.registryService),
@@ -120,7 +128,13 @@ export class ProviderRuntime {
   start(): Promise<void> {
     if (this.#disposed) throw new Error("ProviderRuntime 已 dispose");
     if (this.#startPromise) return this.#startPromise;
-    const startPromise = this.#configRuntime.start().then(() => this.registryService.start());
+    const startPromise = this.#configRuntime.start().then(async () => {
+      await this.registryService.start();
+      // WorkBuddy 故障不应阻断其它模型供应商启动。
+      await this.#workbuddy?.start().catch(() => {
+        log.warn(undefined, "WorkBuddy 本机转接启动失败");
+      });
+    });
     this.#startPromise = startPromise;
     void startPromise.catch(() => {
       if (this.#startPromise === startPromise) this.#startPromise = null;
@@ -131,6 +145,7 @@ export class ProviderRuntime {
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
+    this.#workbuddy?.dispose();
     this.#disposeBuiltinRecovery();
     this.#modelSelectionRuntime.dispose();
     this.registryService.dispose();

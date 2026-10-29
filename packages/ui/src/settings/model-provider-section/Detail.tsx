@@ -1,4 +1,6 @@
 import { useCodingPlanEntryGate } from "@/settings/CodingPlanEntryButton.js";
+import { WorkbuddyPanel } from "@/workbuddy/index.js";
+import { WORKBUDDY_CN_ID } from "@zcode/services";
 /* eslint-disable max-lines -- Model Provider 详情页当前集中编排 Plan Card、API Key 表单和 OAuth 套餐态；后续稳定后再按 family/API/OAuth 拆分。 */
 import {
   BIGMODEL_PROVIDER_ID,
@@ -839,6 +841,17 @@ export function ModelProviderSectionDetail({
   }
 
   const customProvider = selectedNavItem.provider;
+  if (customProvider.config.integration === WORKBUDDY_CN_ID) {
+    return (
+      <WorkbuddyPanel
+        key={customProvider.providerId}
+        provider={customProvider}
+        onSave={onSave}
+        onDelete={onDelete}
+        onSetPersonalModelEnabled={onSetPersonalModelEnabled}
+      />
+    );
+  }
   const customApiKeyUrl = customProvider.templateId
     ? getProviderFormApiKeyManagementUrl(customProvider)
     : undefined;

@@ -733,6 +733,35 @@ modules:
       ui: .
     owner: conversation
 
+  # workbuddy-cn：由 architecture:adopt 登记
+  - id: workbuddy-cn
+    roots:
+      - packages/services/src/workbuddy
+      - packages/services/test/workbuddy
+    managed: true
+    requires: [shared, provider, services]
+    publicEntrypoints:
+      - packages/services/src/workbuddy/index.ts
+      - packages/services/src/workbuddy/contract.ts
+    layers:
+      adapters: .
+    owner: model-provider
+  # workbuddy-settings：由 architecture:adopt 登记
+  - id: workbuddy-settings
+    roots:
+      - packages/ui/src/workbuddy
+      - packages/ui/test/workbuddy
+      - packages/desktop/test/e2e/workbuddy
+    managed: true
+    requires: [ui, services, workbuddy-cn]
+    publicEntrypoints:
+      - packages/ui/src/workbuddy/index.ts
+      - packages/ui/src/workbuddy/contract.ts
+      - packages/ui/src/workbuddy/messages.ts
+    layers:
+      ui: .
+    owner: model-provider
+
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。
   # 基于领先 staging 很多的分支开工时，merge-base 之前的"新增"文件不应被追溯。

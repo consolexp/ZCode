@@ -16,6 +16,13 @@
  * 三件套不能全部门控在 config!==null 上——草稿态会整体不渲染。
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  WorkbuddyCredits,
+  WorkbuddyModelInfo,
+  WorkbuddyModelSummary,
+  useWorkbuddy,
+} from "@/workbuddy/index.js";
+import { WORKBUDDY_CN_ID } from "@zcode/services";
 import { AlarmClockIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import {
@@ -440,6 +447,7 @@ export interface V4ComposerToolbarProps {
 
 /** 模型 / 思考深度 / context usage 簇（渲染在发送键左侧，与旧 UI 同位）。 */
 function V4ComposerModelControlsImpl({
+  sessionId,
   workspacePath,
   workspaceIdentity,
   modelSelectionView = null,
@@ -875,71 +883,16 @@ function V4ComposerModelControlsImpl({
     }),
     [intl],
   );
-  const modelSelectGroups = useMemo<ModelSelectGroup[]>(() => {
-    if (!modelSelectionView) return [];
-    return buildRegistryModelSelectGroups(displayProvider, modelSelectionView, modelGroupLabels);
-  }, [displayProvider, modelGroupLabels, modelSelectionView]);
+  const workbuddyId = modelSelectionView?.providers.find(
+    (candidate) =>
+      candidate.providerId === effectiveConfig?.provider &&
+      candidate.config.integration === WORKBUDDY_CN_ID,
+  )?.providerId;
+  const { state: workbuddyState, run: runWorkbuddy } = useWorkbuddy(workbuddyId);
+  useEffect(() => {
+    if (workbuddyId && activeConfigPicker === "model") void runWorkbuddy("sync-models");
+  }, [workbuddyId, activeConfigPicker, runWorkbuddy]);
 
-  // 修复：恢复「管理模型」入口（老版 onManageModels = 打开设置页并定位模型供应商区）。
-  const handleOpenModelProviderSettings = useCallback(() => {
-    setPendingSettingsSectionIntent("modelProvider");
-    openSettingsTab();
-  }, [openSettingsTab]);
-  const showManageModelsAction = shouldShowManageModelsAction(handleOpenModelProviderSettings);
-  const manageModelsLabel = intl.formatMessage({
-    id: "chat.toolbar.model.manageModels",
-  });
-
-  // 当前投影模型的编码值：provider 命中目录则按自定义模型编码，否则回落裸 model id。
-  const rawModelValue = useMemo(() => {
-    if (!effectiveConfig || !effectiveConfig.model) return "";
-    const providerExists = modelSelectionView?.providers.some(
-      (candidate) => candidate.providerId === effectiveConfig.provider,
-    );
-    if (providerExists) {
-      return encodeCustomModelValue(effectiveConfig.provider, effectiveConfig.model);
-    }
-    return effectiveConfig.model;
-  }, [effectiveConfig, modelSelectionView]);
-
-  // 触发器显示兜底——`<synthetic>`（SDK 恢复时合成的占位模型）或当前模型
-  // 不在可选组（失效/下线/退登）→ 回落占位/默认「选择模型」，不直显协议内部占位符或失效
-  // 模型 id。复用存活的 resolveModelSelectTriggerDisplay。
-  const triggerDisplay = useMemo(
-    () =>
-      resolveModelSelectTriggerDisplay(
-        rawModelValue,
-        modelSelectGroups,
-        showManageModelsAction,
-        manageModelsLabel,
-      ),
-    [manageModelsLabel, modelSelectGroups, rawModelValue, showManageModelsAction],
-  );
-  const normalizedModelValue = triggerDisplay.value ?? "";
-
-  const modelTriggerDisplay = useMemo(() => {
-    // 非可选值（未选 / synthetic / 不可用）：占位文案或默认「选择模型」。
-    const fallbackLabel =
-      triggerDisplay.placeholder ?? intl.formatMessage({ id: "chat.toolbar.model.label" });
-    const providerName =
-      modelSelectionView?.providers.find(
-        (candidate) => candidate.providerId === effectiveConfig?.provider,
-      )?.providerName ?? undefined;
-    return resolveV4ModelTriggerDisplay({
-      modelGroups: modelSelectGroups,
-      normalizedValue: normalizedModelValue,
-      fallbackLabel,
-      providerId: effectiveConfig?.provider,
-      providerName,
-    });
-  }, [
-    effectiveConfig?.provider,
-    intl,
-    modelSelectionView,
-    modelSelectGroups,
-    normalizedModelValue,
-    triggerDisplay.placeholder,
-  ]);
   const handleModelValueChange = useCallback(
     (value: string, reasoningLevel?: string) => {
       if (modelLocked) return;
@@ -1014,6 +967,119 @@ function V4ComposerModelControlsImpl({
     ],
   );
 
+  const modelSelectGroups = useMemo<ModelSelectGroup[]>(() => {
+    if (!modelSelectionView) return [];
+    return buildRegistryModelSelectGroups(
+      displayProvider,
+      modelSelectionView,
+      modelGroupLabels,
+    ).map((group) => {
+      if (!workbuddyId || group.key !== `registry-provider:${workbuddyId}`) return group;
+      return {
+        ...group,
+        items: group.items.map((item) => {
+          const model = workbuddyState?.models?.find(
+            (candidate) => candidate.id === decodeCustomModelValue(item.value)?.modelName,
+          );
+          return model
+            ? {
+                ...item,
+                name: model.name,
+                badgeLabel: model.badges
+                  ?.filter(
+                    (badge) =>
+                      !(model.promotions?.length && /免费|折扣|free|discount/i.test(badge)),
+                  )
+                  .join(" · "),
+                extra: (
+                  <>
+                    <WorkbuddyModelSummary model={model} />
+                    <WorkbuddyModelInfo
+                      model={model}
+                      onSelect={() => {
+                        handleModelValueChange(item.value);
+                        onConfigPickerOpenChange("model", false);
+                      }}
+                      updatedAt={workbuddyState?.modelDetailsUpdatedAt}
+                      error={workbuddyState?.modelDetailsError}
+                    />
+                  </>
+                ),
+              }
+            : item;
+        }),
+      };
+    });
+  }, [
+    displayProvider,
+    modelGroupLabels,
+    modelSelectionView,
+    workbuddyId,
+    workbuddyState,
+    handleModelValueChange,
+    onConfigPickerOpenChange,
+  ]);
+
+  // 修复：恢复「管理模型」入口（老版 onManageModels = 打开设置页并定位模型供应商区）。
+  const handleOpenModelProviderSettings = useCallback(() => {
+    setPendingSettingsSectionIntent("modelProvider");
+    openSettingsTab();
+  }, [openSettingsTab]);
+  const showManageModelsAction = shouldShowManageModelsAction(handleOpenModelProviderSettings);
+  const manageModelsLabel = intl.formatMessage({
+    id: "chat.toolbar.model.manageModels",
+  });
+
+  // 当前投影模型的编码值：provider 命中目录则按自定义模型编码，否则回落裸 model id。
+  const rawModelValue = useMemo(() => {
+    if (!effectiveConfig || !effectiveConfig.model) return "";
+    const providerExists = modelSelectionView?.providers.some(
+      (candidate) => candidate.providerId === effectiveConfig.provider,
+    );
+    if (providerExists) {
+      return encodeCustomModelValue(effectiveConfig.provider, effectiveConfig.model);
+    }
+    return effectiveConfig.model;
+  }, [effectiveConfig, modelSelectionView]);
+
+  // 触发器显示兜底——`<synthetic>`（SDK 恢复时合成的占位模型）或当前模型
+  // 不在可选组（失效/下线/退登）→ 回落占位/默认「选择模型」，不直显协议内部占位符或失效
+  // 模型 id。复用存活的 resolveModelSelectTriggerDisplay。
+  const triggerDisplay = useMemo(
+    () =>
+      resolveModelSelectTriggerDisplay(
+        rawModelValue,
+        modelSelectGroups,
+        showManageModelsAction,
+        manageModelsLabel,
+      ),
+    [manageModelsLabel, modelSelectGroups, rawModelValue, showManageModelsAction],
+  );
+  const normalizedModelValue = triggerDisplay.value ?? "";
+
+  const modelTriggerDisplay = useMemo(() => {
+    // 非可选值（未选 / synthetic / 不可用）：占位文案或默认「选择模型」。
+    const fallbackLabel =
+      triggerDisplay.placeholder ?? intl.formatMessage({ id: "chat.toolbar.model.label" });
+    const providerName =
+      modelSelectionView?.providers.find(
+        (candidate) => candidate.providerId === effectiveConfig?.provider,
+      )?.providerName ?? undefined;
+    return resolveV4ModelTriggerDisplay({
+      modelGroups: modelSelectGroups,
+      normalizedValue: normalizedModelValue,
+      fallbackLabel,
+      providerId: effectiveConfig?.provider,
+      providerName,
+    });
+  }, [
+    effectiveConfig?.provider,
+    intl,
+    modelSelectionView,
+    modelSelectGroups,
+    normalizedModelValue,
+    triggerDisplay.placeholder,
+  ]);
   const planGroups = useMemo(
     () =>
       buildComposerPlanGroups(
@@ -1070,14 +1136,17 @@ function V4ComposerModelControlsImpl({
 
   const draftModelThoughtOption = useMemo(
     () =>
-      effectiveConfig
+      effectiveConfig &&
+      (!workbuddyId ||
+        (workbuddyState?.models?.find((model) => model.id === effectiveConfig.model)?.reasoning
+          ?.supportedEfforts.length ?? 0) > 1)
         ? resolveDraftModelThoughtOption(
             effectiveConfig.provider,
             effectiveConfig.model,
             modelSelectionView,
           )
         : null,
-    [effectiveConfig, modelSelectionView],
+    [effectiveConfig, modelSelectionView, workbuddyId, workbuddyState],
   );
 
   // 候选档位只来自目标 Host 的 ModelSelectionView，已选档位只来自 Composer。
@@ -1261,6 +1330,19 @@ function V4ComposerModelControlsImpl({
         data-usage-max={usage?.contextWindow?.maxTokens ?? ""}
         className="hidden"
       />
+      {sessionId &&
+        effectiveConfig?.provider &&
+        modelSelectionView?.providers.some(
+          (candidate) =>
+            candidate.providerId === effectiveConfig.provider &&
+            candidate.config.integration === WORKBUDDY_CN_ID,
+        ) && (
+          <WorkbuddyCredits
+            key={`${effectiveConfig.provider}:${sessionId}`}
+            providerId={effectiveConfig.provider}
+            sessionId={sessionId}
+          />
+        )}
       {/* Highspeed 卡激活即锁定模型；不能等动效交接完成才隐藏，否则 usage 圈圈会短暂闪现。 */}
       {!modelLocked ? (
         <ChatContextUsage
