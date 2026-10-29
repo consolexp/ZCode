@@ -15,12 +15,12 @@ const fileService = createFileService();
 describe.each([null, 0o000, 0o400, 0o100])(
   "远程工作区目录 admission，权限 %s（null 为删除）",
   (permissions) => {
-    it.each(["manual", "automatic"] as const)(
+    // each 回调不会额外收到 context；在定义阶段跳过无法验证 POSIX 权限的环境。
+    it
+      .skipIf(permissions !== null && (process.platform === "win32" || process.getuid?.() === 0))
+      .each(["manual", "automatic"] as const)(
       "%s：单个目录失效只拒绝该项目，修复后可以重连",
-      async (mode, context) => {
-        if (permissions !== null && (process.platform === "win32" || process.getuid?.() === 0)) {
-          context.skip();
-        }
+      async (mode) => {
         const root = await realpath(await mkdtemp(join(tmpdir(), "zcode-workspace-admission-")));
         const paths = [1, 2, 3].map((n) => join(root, `workspace-${n}`));
         const closedListeners = new Set<
