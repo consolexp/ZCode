@@ -108,6 +108,10 @@ vi.mock("@/store/StoreProvider.js", () => ({
     selector(mocks.auth),
 }));
 vi.mock("@/hooks/useWorkspaceServices.js", () => ({ useBaseWorkspaceServices: () => ({}) }));
+// 工具栏新增账号投影 hook；恢复用例沿用隔离服务的夹具，不启动真实账号轮询。
+vi.mock("@/workbuddy/useWorkbuddy.js", () => ({
+  useWorkbuddy: () => ({ state: undefined, run: vi.fn() }),
+}));
 vi.mock("@/hooks/useComposerConnectionSwitch.js", () => ({
   useComposerConnectionSwitch: () => ({
     pending: false,
