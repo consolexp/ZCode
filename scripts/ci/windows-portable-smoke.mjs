@@ -31,6 +31,8 @@ const stagedAgent = await readFile("packages/desktop/bundled-agents/win32-x64/gl
 assert.ok(stagedAgent.equals(await readFile(join(root, "resources/glm/zcode.cjs"))));
 
 const profile = await mkdtemp(join(tmpdir(), "zcode-portable-smoke-"));
+const diagnostics = resolve("packages/desktop/dist/smoke-diagnostics");
+await mkdir(diagnostics, { recursive: true });
 const env = {
   ...process.env,
   ZCODE_DISABLE_FIXED_REMOTE_DEBUGGING_PORT: "1",
@@ -60,6 +62,7 @@ child.stdout.on("data", (data) => (output += data));
 child.stderr.on("data", (data) => (output += data));
 child.on("error", (error) => (output += error.message));
 let browser;
+let page;
 try {
   let endpoint;
   for (let i = 0; i < 120; i++) {
@@ -72,7 +75,6 @@ try {
   }
   assert.ok(endpoint, "Missing packaged browser debugging endpoint");
   browser = await chromium.connectOverCDP(endpoint);
-  let page;
   for (let i = 0; i < 60; i++) {
     page = browser
       .contexts()[0]
@@ -85,7 +87,15 @@ try {
   page.setDefaultTimeout(30000);
   await page.getByTestId("login-use-api-key-button").click();
   await page.getByTestId("login-api-key-skip-button").click();
-  await page.getByTestId("task-settings-button").click();
+  const settings = page.getByTestId("task-settings-button");
+  const onboarding = page.getByTestId("onboarding-page");
+  // 新 profile 的职业引导会遮住设置入口；复用现有 E2E 的真实 Escape 退出路径。
+  await settings.or(onboarding).first().waitFor();
+  if (await onboarding.isVisible()) {
+    await page.keyboard.press("Escape");
+    await onboarding.waitFor({ state: "hidden" });
+  }
+  await settings.click();
   await page.getByTestId("settings-section-nav-modelProvider").click();
   await page.getByTestId("model-provider-add-provider-button").click();
   await page.getByTestId("model-provider-template-item-workbuddy-cn").click();
@@ -107,6 +117,14 @@ try {
   console.log(
     "Portable ZIP verified: current commit, clean account, WorkBuddy panel, embedded Agent ready",
   );
+} catch (error) {
+  if (page) {
+    await page.screenshot({ path: join(diagnostics, "failure.png") }).catch(() => {});
+    await writeFile(join(diagnostics, "page.txt"), await page.locator("body").innerText()).catch(
+      () => {},
+    );
+  }
+  throw error;
 } finally {
   if (browser) {
     try {
@@ -118,5 +136,5 @@ try {
     await browser.close().catch(() => {});
   }
   if (child.exitCode === null) child.kill();
-  await writeFile(join(profile, "startup.log"), output);
+  await writeFile(join(diagnostics, "startup.log"), output);
 }

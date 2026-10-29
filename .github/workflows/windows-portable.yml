@@ -84,6 +84,16 @@ jobs:
           本次未使用真实账号验证模型推理，未执行完整测试套件。此为未签名预发布版本，Windows 可能提示未知发布者。
           SHA256SUMS.txt 用于校验 ZIP。
           "@ | Set-Content packages/desktop/dist/release-notes.md -Encoding utf8
+      - name: Preserve failed build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unverified-portable-diagnostics
+          path: |
+            packages/desktop/dist/smoke-diagnostics/
+            packages/desktop/dist/ZCode-WorkBuddy-win-x64-portable.zip
+          if-no-files-found: ignore
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         with:
           name: ZCode-WorkBuddy-win-x64-portable
