@@ -1,34 +1,29 @@
 # Pre-push Hook
 
-仓库现在通过 Husky 接管 Git 的 `pre-push`。
+本修改版已移除 `.husky/pre-push`。`git push` 不再自动执行检查或因测试失败被此钩子阻止。
 
-- 安装依赖后会执行根脚本 `pnpm prepare`，自动完成 Husky 安装。
-- `pre-push` 会执行 `pnpm run verify:pre-push`。
+- 安装依赖后根脚本 `pnpm prepare` 仍安装 Husky，但不会恢复已删除的推送检查脚本。
+- 需要检查时手动执行 `pnpm run verify:pre-push`。
 - 根 `pnpm test` 现在只跑单测，不再误把桌面端 `packages/desktop/test/e2e` 当成 Vitest 用例。
 - Bugfix：单测脚本里的 E2E exclude glob 必须加引号；否则 shell 会先把 `packages/desktop/test/e2e/**/*.test.ts` 展开成真实文件列表，导致 Vitest 把多余文件当成 filters，同时又被 exclude 排除，最终报 `No test files found` 并阻止 push。
-- `verify:pre-push` 依次执行 lint、架构检查和 push 范围的受影响单测；lint、架构检查、选中测试或脚本自身失败都会阻止 push。
+- `verify:pre-push` 依次执行 lint、数据库 schema 检查、架构测试与检查、push 范围的受影响单测；失败使该手动命令退出，不自动阻止之后的 push。
 
-这样可以在代码推到远端前，先用更快的静态检查拦住明显问题，再把单测问题拦在本地，同时保留 `pnpm test:e2e` 作为桌面端 E2E 的独立入口。
+`pnpm test:e2e` 仍作为桌面端 E2E 的独立入口。删除钩子不代表已有测试失败已解决。
 
 ## 开发环境与版本管理工具
 
-pre-push 直接使用当前 `PATH` 中的 pnpm / Node，不强制依赖 mise。此前 hook 外层的
-`mise exec` 虽能选择指定版本，却使已用 nvm 等方式准备好环境的开发者也必须安装 mise，
-否则检查尚未开始就会失败。
+手动检查直接使用当前 `PATH` 中的 pnpm / Node，不强制依赖 mise。
 
 ```text
 开发者准备 Node / pnpm（mise、nvm 或其他方式）
-    → Git hook 保留 push ref 信息并清理 Git local env
     → pnpm run verify:pre-push
     → lint / 架构检查 / 受影响单测
 ```
 
 - 仓库负责声明工具版本和执行检查；个人环境负责让合适的 Node / pnpm 可被 Git 找到。
 - mise 仍是可选的开发入口；`mise.toml`、`mise-run.mjs` 和现有子进程 PATH 保护保持不变。
-- GUI Git 客户端若找不到 Node / pnpm，可在个人 `~/.config/husky/init.sh` 中初始化自己的
-  版本管理环境，参见 [Husky 官方说明](https://typicode.github.io/husky/how-to.html#node-version-managers-and-guis)。
-- 缺少命令或检查失败仍然阻止 push；hook 不自动安装工具，不静默跳过检查。
-- 本次只解除 hook 对 mise 的依赖，不新增版本检查，也不修改现有开发、CLI/SEA 或 CI 的版本要求。
+- 缺少命令或检查失败会使手动检查命令失败；检查不自动安装工具。
+- 现有开发、CLI/SEA 和 CI 的版本要求不变。下文的 hook ref 输入描述保留为检查脚本的兼容能力，不表示本修改版仍自动挂载钩子。
 
 ## Affected Unit Tests
 
